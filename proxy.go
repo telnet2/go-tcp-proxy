@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"os"
 )
 
 // Proxy - Manages a Proxy connection, piping data between local and remote.
@@ -16,14 +17,16 @@ type Proxy struct {
 	errsig        chan bool
 	tlsUnwrapp    bool
 	tlsAddress    string
+	ibf, obf      *os.File
 
 	Matcher  func([]byte)
 	Replacer func([]byte) []byte
 
 	// Settings
-	Nagles    bool
-	Log       Logger
-	OutputHex bool
+	Nagles         bool
+	Log            Logger
+	OutputHex      bool
+	OutputRawBytes bool
 }
 
 // New - Create a new Proxy instance. Takes over local connection passed in,
@@ -51,6 +54,14 @@ func NewTLSUnwrapped(lconn *net.TCPConn, laddr, raddr *net.TCPAddr, addr string)
 
 type setNoDelayer interface {
 	SetNoDelay(bool) error
+}
+
+func (p *Proxy) SetInboundFile(f *os.File) {
+	p.ibf = f
+}
+
+func (p *Proxy) SetOutboundFile(f *os.File) {
+	p.obf = f
 }
 
 // Start - open connection to remote and start proxying data.
@@ -84,8 +95,8 @@ func (p *Proxy) Start() {
 	p.Log.Info("Opened %s >>> %s", p.laddr.String(), p.raddr.String())
 
 	//bidirectional copy
-	go p.pipe(p.lconn, p.rconn)
-	go p.pipe(p.rconn, p.lconn)
+	go p.pipe(p.lconn, p.rconn, p.ibf)
+	go p.pipe(p.rconn, p.lconn, p.obf)
 
 	//wait for close...
 	<-p.errsig
@@ -103,7 +114,7 @@ func (p *Proxy) err(s string, err error) {
 	p.erred = true
 }
 
-func (p *Proxy) pipe(src, dst io.ReadWriter) {
+func (p *Proxy) pipe(src, dst io.ReadWriter, f *os.File) {
 	islocal := src == p.lconn
 
 	var dataDirection string
@@ -116,6 +127,8 @@ func (p *Proxy) pipe(src, dst io.ReadWriter) {
 	var byteFormat string
 	if p.OutputHex {
 		byteFormat = "%x"
+	} else if p.OutputRawBytes {
+		byteFormat = "%v"
 	} else {
 		byteFormat = "%s"
 	}
@@ -143,12 +156,17 @@ func (p *Proxy) pipe(src, dst io.ReadWriter) {
 		//show output
 		p.Log.Debug(dataDirection, n, "")
 		p.Log.Trace(byteFormat, b)
+		p.Log.Trace("%s", string(b))
 
 		//write out result
 		n, err = dst.Write(b)
 		if err != nil {
 			p.err("Write failed '%s'\n", err)
 			return
+		}
+
+		if f != nil {
+			_, _ = f.Write(b)
 		}
 		if islocal {
 			p.sentBytes += uint64(n)

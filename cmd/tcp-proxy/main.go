@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	proxy "github.com/jpillora/go-tcp-proxy"
+	proxy "github.com/telnet2/go-tcp-proxy"
 )
 
 var (
@@ -23,10 +23,14 @@ var (
 	veryverbose = flag.Bool("vv", false, "display server actions and all tcp data")
 	nagles      = flag.Bool("n", false, "disable nagles algorithm")
 	hex         = flag.Bool("h", false, "output hex")
-	colors      = flag.Bool("c", false, "output ansi colors")
-	unwrapTLS   = flag.Bool("unwrap-tls", false, "remote connection with TLS exposed unencrypted locally")
-	match       = flag.String("match", "", "match regex (in the form 'regex')")
-	replace     = flag.String("replace", "", "replace regex (in the form 'regex~replacer')")
+	rawBytes    = flag.Bool("raw", false, "output raw bytes")
+	inbound     = flag.String("inbound", "", "file to write inbound (local to remote) traffic")
+	outbound    = flag.String("outbound", "", "file to write outbound (remote to local) traffic")
+
+	colors    = flag.Bool("c", false, "output ansi colors")
+	unwrapTLS = flag.Bool("unwrap-tls", false, "remote connection with TLS exposed unencrypted locally")
+	match     = flag.String("match", "", "match regex (in the form 'regex')")
+	replace   = flag.String("replace", "", "replace regex (in the form 'regex~replacer')")
 )
 
 func main() {
@@ -78,11 +82,30 @@ func main() {
 			p = proxy.New(conn, laddr, raddr)
 		}
 
+		if *inbound != "" {
+			ibf, err := os.Create(*inbound)
+			if err != nil {
+				logger.Warn("inbound file error: %v", err)
+			} else {
+				p.SetInboundFile(ibf)
+			}
+		}
+
+		if *outbound != "" {
+			obf, err := os.Create(*outbound)
+			if err != nil {
+				logger.Warn("inbound file error: %v", err)
+			} else {
+				p.SetOutboundFile(obf)
+			}
+		}
+
 		p.Matcher = matcher
 		p.Replacer = replacer
 
 		p.Nagles = *nagles
 		p.OutputHex = *hex
+		p.OutputRawBytes = *rawBytes
 		p.Log = proxy.ColorLogger{
 			Verbose:     *verbose,
 			VeryVerbose: *veryverbose,
