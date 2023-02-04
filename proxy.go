@@ -155,8 +155,11 @@ func (p *Proxy) pipe(src, dst io.ReadWriter, f *os.File) {
 
 		//show output
 		p.Log.Debug(dataDirection, n, "")
-		p.Log.Trace(byteFormat, b)
-		p.Log.Trace("%s", string(b))
+		if byteFormat == "%s" {
+			p.Log.Trace("%s", string(b))
+		} else {
+			p.Log.Trace(byteFormat, b)
+		}
 
 		//write out result
 		n, err = dst.Write(b)
