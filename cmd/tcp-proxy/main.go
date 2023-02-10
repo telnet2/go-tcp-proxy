@@ -24,6 +24,7 @@ var (
 	nagles      = flag.Bool("n", false, "disable nagles algorithm")
 	hex         = flag.Bool("h", false, "output hex")
 	rawBytes    = flag.Bool("raw", false, "output raw bytes")
+	h2          = flag.Bool("h2", false, "output as HTTP/2 frames")
 	inbound     = flag.String("inbound", "", "file to write inbound (local to remote) traffic")
 	outbound    = flag.String("outbound", "", "file to write outbound (remote to local) traffic")
 
@@ -106,6 +107,7 @@ func main() {
 		p.Nagles = *nagles
 		p.OutputHex = *hex
 		p.OutputRawBytes = *rawBytes
+		p.H2 = *h2
 		p.Log = proxy.ColorLogger{
 			Verbose:     *verbose,
 			VeryVerbose: *veryverbose,
